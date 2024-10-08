@@ -1,5 +1,11 @@
+\import Arith.Nat
 \import Data.List
-\open Nat(+,*)
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Prelude
+\open Nat (+, *)
 
 -- 1. Чему равно fileTest (в нормальной форме)? Докажите это.
 
@@ -7,7 +13,9 @@
 
 -- 3. Докажите ассоциативность ++.
 
-\func ++-assoc {A : \Type} (xs ys zs : List A) : (xs ++ ys) ++ zs = xs ++ (ys ++ zs) => {?}
+\func ++-assoc {A : \Type} (xs ys zs : List A) : (xs ++ ys) ++ zs = xs ++ (ys ++ zs) \elim xs
+  | nil => idp
+  | a :: xs => \let rec => ++-assoc xs ys zs \in rewrite rec idp
 
 -- 4. Докажите, что reverse (reverse xs) = xs, где reverse определен через ++.
 
@@ -16,28 +24,76 @@
   | :: x xs => reverse xs ++ x :: nil
 
 -- Это утверждение будет полезно для доказательства.
-\func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs => {?}
 
-\func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs => {?}
+\func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs \elim xs
+  | nil => rewrite (inv $ ++-right-zero (reverse ys)) idp
+  | a :: xs => rewrite (reverse++ xs ys) (rewrite (++-assoc (reverse ys) (reverse xs) (a :: nil)) idp)
+  \where {
+    \func ++-right-zero {A : \Type} (xs : List A) : xs = xs ++ nil \elim xs
+      | nil => idp
+      | a :: xs => rewrite (inv $ ++-right-zero xs) idp
+  }
+
+\func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs \elim xs
+  | nil => idp
+  | a :: xs => rewrite (reverse++ (reverse xs) (a :: nil)) (pmap (a ::) (reverse-isInvolutive xs))
 
 -- 5. Докажите дистрибутивность умножения над сложением для натуральных чисел.
 
-\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n => {?}
+\func +-comm (a b : Nat) : a + b = b + a \elim a
+  | 0 => idp
+  | suc a => pmap suc (+-comm a b)
 
-\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k => {?}
+\func +-assoc (a b c : Nat) : a + (b + c) = (a + b) + c \elim a
+  | 0 => idp
+  | suc a => pmap suc (+-assoc a b c)
+
+\func *-comm (a b : Nat) : a * b = b * a \elim a, b
+  | 0, 0 => idp
+  | 0, suc b => rewrite (*-comm 0 b) idp
+  | suc a, 0 => rewriteI (*-comm a 0) idp
+  | suc a, suc b =>
+    \let
+      | rec => *-comm (suc a) b
+      | rec1 => *-comm a b
+      | rec2 => *-comm a (suc b)
+    \in
+      rewrite (rec, inv $ +-assoc (b * a) b a, +-comm b a, +-assoc (b * a) a b, inv $ rec1)
+          (pmap (\lam x => suc (x + b)) rec2)
+
+\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n \elim n
+  | 0 => idp
+  | suc n =>
+    rewrite (
+      +-assoc ((m + k) * n) m k,
+      +-assoc (m * n + m) (k * n) k,
+      rdistr n m k,
+      inv $ +-assoc (m * n) (k * n) m,
+      inv $ +-assoc (m * n) m (k * n),
+      +-comm (k * n) m
+    ) idp
+
+\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k =>
+  rewrite (
+    *-comm n (m + k),
+    rdistr n m k, -- m * n + k * n = n * m + n * k
+    *-comm m n,
+    *-comm k n
+  ) idp
 
 -- 6. Определите конгруэнтность для функций двух аргументов через transport.
 --    Можно использовать любые функции, определенные через transport.
 
-\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' => {?}
+\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' =>
+  pmap {_} {_} (\lam (pr : \Sigma A B) => f pr.1 pr.2) {a, b} {a', b'} (pmap (\lam x => (x, b)) p *> pmap (\lam x => (a', x)) q)
 
 -- 7. Докажите, что transport выражается через pmap и repl и наоборот.
 
 -- repl говорит, что если у нас есть два равных типа, то у нас есть функция из одного во второй.
 -- Определите repl через transport.
 
-\func repl {A B : \Type} (p : A = B) (a : A) : B => {?}
+\func repl {A B : \Type} (p : A = B) (a : A) : B => transport (\lam x => x) p a
 
 -- Определите transport через repl и pmap.
 
-\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => repl (pmap B p) b
