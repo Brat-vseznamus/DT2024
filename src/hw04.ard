@@ -1,4 +1,15 @@
 \import Data.Bool
+\import Data.List (::, List, length)
+\import Data.Maybe
+\import Data.Or
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Prelude (=, Nat, idp, suc)
+\import lect01 (+)
+\import lect02 (T, absurd)
+\import lect03
 \import lect04
 
 -- 1. Напишите функцию lookup, которая принимает List A и натуральное число и возвращает элемент по заданому индексу.
@@ -11,34 +22,74 @@
   | suc x, 0 => false
   | suc x, suc y => x < y
 
-\func lookup => {?}
+\func lookup {A : \Type} (l : List A) (n : Nat) (inRange : T (n < length l)) : A \elim l, n
+  | List.nil, 0 => absurd inRange
+  | List.nil, suc n => absurd inRange
+  | a :: l, 0 => a
+  | a List.:: l, suc n => lookup l n inRange
 
 -- 2. Реализуйте аналоги функции replicate для vec и Vec (эта функция создает список заданной длины, состоящий из повторений данного элемента).
+\func replicate_vec {A : \Type} (a : A) (n : Nat) : vec A n \elim n
+  | 0 => ()
+  | suc n => (a, replicate_vec a n)
+
+\func replicate_Vec {A : \Type} (a : A) (n : Nat) : Vec A n \elim n
+  | 0 => nil
+  | suc n => cons a (replicate_Vec a n)
 
 -- 3. Реализуйте аналоги функции map для vec и Vec.
+\func map_vec {A B : \Type} {n : Nat} (f : A -> B) (v : vec A n) : vec B n \elim n, v
+  | 0, () => ()
+  | suc n, (a, v) => (f a , map_vec f v)
+
+\func map_Vec {A B : \Type} {n : Nat} (f : A -> B) (v : Vec A n) : Vec B n \elim n, v
+  | 0, nil => nil
+  | suc n, cons a v => cons (f a) (map_Vec f v)
 
 -- 4. Реализуйте аналоги функции zipWith для vec и Vec.
 --    Функция должна принимать вектора одинаковой длины.
+\func zipWith_vec {A B : \Type} {n : Nat} (v : vec A n) (u : vec B n) : vec (\Sigma A B) n \elim n, v, u
+  | 0, v, u => ()
+  | suc n, (x, v), (y, u) => ((x, y), zipWith_vec v u)
+
+\func zipWith_Vec {A B : \Type} {n : Nat} (v : Vec A n) (u : Vec B n) : Vec (\Sigma A B) n \elim n, v, u
+  | 0, nil, nil => nil
+  | suc n, cons x v, cons y u => cons (x, y) (zipWith_Vec v u)
 
 -- 5. Определите тип CTree A n полных бинарных деревьев высоты ровно n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
-
-\data CTree (A : \Type) (n : Nat)
+\data CTree (A : \Type) (n : Nat) \elim n
+  | 0 => c-leaf
+  | suc n => c-vertex (a : A) (left right : CTree A n)
 
 -- 6. Определите тип Tree A n бинарных деревьев высоты не больше n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data Tree (A : \Type) (n : Nat)
+\data Tree (A : \Type) (n : Nat) \elim n
+  | _ => leaf
+  | suc n => bin (a : A) (left right : Tree A n)
 
 -- определите функцию, возвращающую высоту дерева.
 
-\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) => {?}
+\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) \elim n, t
+  | n, leaf => fzero
+  | suc n, bin a left right => fsuc (max (height n left) (height n right))
+  \where {
+    \func max {n : Nat} (x y : Fin (suc n)) : Fin (suc n) \elim n, x, y
+      | n, fzero, fzero => fzero
+      | n, fzero, fsuc y => fsuc y
+      | n, fsuc x, fzero => fsuc x
+      | (suc n), fsuc x, fsuc y => fsuc (max x y)
+      | 0, fsuc x, fsuc y => absurd (\case x)
+  }
 
 -- 7. Функции Fin n -> A соответствуют спискам элементов A длины n.
 --     Функция, преобразующая Vec A n в Fin n -> A, была реализована на лекции.
 --     Реализуйте обратную функцию.
 
-\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n => {?}
+\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n \elim n, f
+  | 0, f => nil
+  | suc n, f => cons (f fzero) (coin (\lam fin => f (fsuc fin)))
 
 -- Optional task
 -- 8. Определите тип матриц и ряд функций над ними.
@@ -63,15 +114,48 @@
 \func matMul {A : \Type} (z : A) (add mul : A -> A -> A) (n m k : Nat) (M : Mat A n m) (N : Mat A m k) : Mat A n k => {?}
 
 -- 9. Определите факториал через Nat-rec.
+\func fac (n : Nat) : Nat => Nat-rec Nat 1 (\lam x acc => suc x Nat.* acc) n
 
 -- 10. Докажите ассоциативность сложения для натуральных чисел через Nat-elim.
-
+\func +-accos {n m k : Nat} : (n + m) + k = n + (m + k) =>
+  Nat-elim
+      (\lam x => (x + m) + k = x + (m + k))
+      (rewrite (+-left-0 (m + k), +-left-0 m) idp)
+      (\lam x p => rewriteI (+-suc-assoc x (m + k), +-suc-assoc x m, +-suc-assoc (x + m) k) (pmap suc p))
+      n
+  -- find bug
+  \where {
+    \func +-left-0 (n : Nat) : 0 + n = n => Nat-elim (\lam x => 0 + x = x) idp (\lam _ p => pmap suc p) n
+    \func +-suc-assoc (n m : Nat) : suc (n + m) = suc n + m \elim n, m
+      | 0, 0 => idp
+      | 0, suc m1 => pmap suc (+-suc-assoc 0 m1)
+      | suc n1, 0 => idp
+      | suc n1, suc m1 => pmap suc (+-suc-assoc (suc n1) m1)
+  }
 -- 11. Определите рекурсор и элиминатор для D.
 
 \data D
   | con1 Nat
   | con2 D D
   | con3 (Nat -> D)
+
+\func D-elim (P : D -> \Type)
+               (c1 : \Pi (n : Nat) -> P (con1 n))
+               (c2 : \Pi (d1 d2 : D) -> P d1 -> P d2 -> P (con2 d1 d2))
+               (c3 : \Pi (f : Nat -> D) -> (\Pi (x : Nat) -> P (f x)) -> P (con3 f))
+               (x : D) : P x
+  \elim x
+    | con1 n => c1 n
+    | con2 x1 x2 => c2 x1 x2 (D-elim P c1 c2 c3 x1) (D-elim P c1 c2 c3 x2)
+    | con3 _x => c3 _x (\lam x => D-elim P c1 c2 c3 (_x x))
+
+
+\func D-rec (P : \Type)
+              (c1 : \Pi (n : Nat) -> P)
+              (c2 : \Pi (d1 d2 : D) -> P -> P -> P)
+              (c3 : \Pi (f : Nat -> D) -> (\Pi (x : Nat) -> P) -> P)
+              (x : D) : P
+  => D-elim (\lam _ => P) c1 c2 c3 x
 
 {- To check that the definition of D-elim and D-rec is correct, you can try to implement foo using D-rec.
 \func foo (d : D) : Nat
@@ -81,3 +165,16 @@
 -}
 
 -- 12. Определите рекурсор и элиминатор для List.
+\func List-elim {A : \Type} (P : List A -> \Type)
+                (c1 : P List.nil)
+                (c2 : \Pi (h : A) (t : List A) -> P t -> P (h :: t))
+                (x : List A) : P x
+  \elim x
+    | List.nil => c1
+    | a :: x => c2 a x (List-elim P c1 c2 x)
+
+\func List-rec {A : \Type} (P : \Type)
+                (c1 : P)
+                (c2 : \Pi (h : A) (t : List A) -> P -> P)
+                (x : List A) : P
+=> List-elim (\lam _ => P) c1 c2 x
