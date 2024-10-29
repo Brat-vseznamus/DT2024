@@ -1,12 +1,19 @@
 \import Data.Bool
 \import Data.List (List, length)
+\import Data.Or
+\import Function.Meta
 \import Logic
+\import Meta
+\import Paths.Meta
+\import Set (==, Dec, DecSet, decToBool)
 \import lect06
-\open Nat(+,*)
+\open Nat (+, *)
 
 -- 1. Определите предикат принадлежности элемента списку.
 
-\data In {A : \Type} (a : A) (xs : List A)
+\data In {A : \Type} (a : A) (xs : List A) \elim xs
+  | List.:: x _  => in-head (a = x)
+  | List.:: x xs => in-tail (In a xs)
 
 -- Optional:
 -- 2. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'.
@@ -15,18 +22,48 @@
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
 
 \data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | rtc-trivial (R x y)
+  | rtc-refl (x = y)
+  | rtc-trans (\Sigma (z : A) (ReflTransClosure R x z) (ReflTransClosure R z y))
 
 -- 4. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
 
 \func \infix 4 <-> (A B : \Type) => \Sigma (A -> B) (B -> A)
 
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
-  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
-  => {?}
+  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y => \lam x y =>
+    (
+      \lam r => rtc-trivial r,
+      ReflTransClosure-lem-lemma R x y refl trans
+    )
+  \where {
+    \func ReflTransClosure-lem-lemma {A : \Type} (R : A -> A -> \Type) (x : A) (y : A) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z) (r : ReflTransClosure R x y) : R x y \elim x, y, r
+      | x, y, rtc-trivial r => r
+      | x, y, rtc-refl p => rewrite p (refl y)
+      | x, y, rtc-trans (z, rtc1, rtc2) =>
+        \let
+          | r1 => ReflTransClosure-lem-lemma R x z refl trans rtc1
+          | r2 => ReflTransClosure-lem-lemma R z y refl trans rtc2
+        \in trans x z y r1 r2
+  }
 
 -- 5. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
 
+\data SubListData {A : \Type} (xs ys : List A) \elim xs, ys
+  | List.nil, _ => nil-prefix
+  | x List.:: xs, y List.:: ys => head-include (x = y) (SubListData xs ys)
+  | xs, y List.:: ys => tail-include (SubListData xs ys)
+
+\func Sublist {A : \Set} (xs ys : List A) => SubListData xs ys
+
 -- 6. Докажите, что Sublist (filter p xs) xs для любых p и xs.
+
+\func filter-is-sublist {A : \Set} (xs : List A) (p : A -> Bool) : Sublist (filter p xs) xs \elim xs
+  | List.nil => nil-prefix
+  | a List.:: xs => mcases \with {
+    | true => head-include idp (filter-is-sublist xs p)
+    | false => \let rec => filter-is-sublist xs p \in tail-include rec
+  }
 
 -- 7. Определите filter через if, а не через \case.
 --     Докажите для этой версии filter лемму filter-lem.
@@ -51,8 +88,7 @@
 -- Для этого введем эквивалентность предикатов.
 
 \func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
-  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x
-  => {?}
+  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x => {?}
 
 -- Optional:
 -- 11. Парадокс Рассела показывает, что не существует множества всех множеств.
@@ -64,5 +100,5 @@
 -- Верно, что в общем случае существование такого утверждения влечет противоречие.
 -- Это легко доказать при помощи исключенного третьего, но утверждение верно и без него.
 -- Докажите этот факт.
-\func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty
-  => {?}
+
+\func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty => {?}
