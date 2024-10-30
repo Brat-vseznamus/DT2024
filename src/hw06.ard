@@ -6,6 +6,8 @@
 \import Meta
 \import Paths.Meta
 \import Set (==, Dec, DecSet, decToBool)
+\import hw05
+\import lect03 (Leibniz)
 \import lect06
 \open Nat (+, *)
 
@@ -51,8 +53,8 @@
 
 \data SubListData {A : \Type} (xs ys : List A) \elim xs, ys
   | List.nil, _ => nil-prefix
-  | x List.:: xs, y List.:: ys => head-include (x = y) (SubListData xs ys)
   | xs, y List.:: ys => tail-include (SubListData xs ys)
+  | x List.:: xs, y List.:: ys => head-include (x = y) (SubListData xs ys)
 
 \func Sublist {A : \Set} (xs ys : List A) => SubListData xs ys
 
@@ -68,27 +70,97 @@
 -- 7. Определите filter через if, а не через \case.
 --     Докажите для этой версии filter лемму filter-lem.
 
-\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A => {?}
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | List.nil => List.nil
+  | a List.:: xs => if (p a) (a List.:: filter' p xs) (filter' p xs)
 
-\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) => {?}
+\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) \elim xs
+  | List.nil => zero<=_
+  | a List.:: xs => cases (p a) \with {
+    | false => \let rec => filter-lem p xs \in LessOrEq-trans rec LessOrEq-trivail
+    | true => suc<=suc (filter-lem p xs)
+  }
+  \where {
+    \func LessOrEq-trans {a b c : Nat} (l1 : LessOrEq a b) (l2 : LessOrEq b c) : LessOrEq a c \elim a, b, c, l1, l2
+      | 0, 0, c, zero<=_, zero<=_ => zero<=_
+      | 0, suc b, suc c, zero<=_, suc<=suc l2 => zero<=_
+      | suc a, suc b, suc c, suc<=suc l1, suc<=suc l2 => suc<=suc (LessOrEq-trans l1 l2)
+
+    \func LessOrEq-trivail {a : Nat} : LessOrEq a (suc a) \elim a
+      | 0 => zero<=_
+      | suc a => suc<=suc LessOrEq-trivail
+  }
 
 -- 8. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
+
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x =>
+  \case x \as x', f true \as ft, f false \as ff, idp : f true = ft, idp : f false = ff \return f (f (f x')) = f x' \with {
+    | false, _, false, _, ff => rewrite (ff, ff, ff) idp
+    | false, false, true, ft, ff => rewrite (ff, ft, ff) idp
+    | false, true, true, ff, ft => rewrite (ft, ff, ff) idp
+    | true, false, false, ff, ft => rewrite (ff, ft, ft) idp
+    | true, false, true, ff, ft => rewrite (ff, ft, ff) idp
+    | true, true, _, ft, _ => rewrite (ft, ft, ft) idp
+  }
 
 -- 9. Докажите, что предикат isEven разрешим.
 
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => {?}
+\func isEven-dec : DecPred isEven => \lam a => isEven-dec.isEven-dec-lemma a
+  \where {
+    \func isEven-dec-lemma (a : Nat) : Decide (isEven a) \elim a
+      | 0 => yes (zero, idp)
+      | 1 => no (\lam (k, one=2k) => \case k \as k', one=2k : 1 = 2 * k' \with {
+        | 0, ()
+      })
+      | suc (suc a) => \let rec => isEven-dec-lemma a \in \case rec \with {
+        | yes (k, a=2k) => yes (suc k, rewrite a=2k idp)
+        | no n => no (\lam (k, a=2k) => \case k \as k', a=2k : suc (suc a) = 2 * k' \with {
+          | suc k', p => n (k', pmap (\lam x => \case x \with {
+            | suc (suc n) => n
+            | _ => 0
+          }) p)
+        })
+      }
+  }
 
 -- 10. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
-\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => {?}
+\func f=g {A B : \Type} {f g : A -> B} (p : \Pi (x : A) -> f x = g x) : f = g => path (\lam i a => p a @ i)
+
+\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => unfold (FromBoolToDec, FromDecToBool)
+    (f=g (\lam x => mcases \with {
+      | yes a1 => rewrite (So.fromSo a1) idp
+      | no n => \case p x \as d, n : Not (So d) \return false = d \with {
+        | false, _ => idp
+        | true, n => absurd (n ())
+      }
+    }))
 
 -- Мы не можем доказать, что FromBoolToDec (FromDecToBool P) = P, но мы можем доказать более слабое утверждение: эти предикаты логически эквивалентны.
 -- Для этого введем эквивалентность предикатов.
 
-\func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
-  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x => {?}
+\func dbd {A : \Type} (P_ : \Sigma (P : A -> \Type) (DecPred P))
+  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P_)).1 x <-> P_.1 x =>
+  \lam x => (
+    \lam _x => \let r => unfold (FromBoolToDec, FromDecToBool) _x \in \case P_.2 x \as p, r : So (\case p \with {
+      | yes _ => true
+      | no _ => false
+    }) \with {
+      | yes a, s => a
+    },
+    \lam _x => unfold (FromBoolToDec, FromDecToBool)
+        (
+          \case P_.2 x \as p \return So (\case p \with {
+            | yes _ => true
+            | no _ => false
+          }) \with {
+            | yes a => ()
+            | no n => n _x
+          }
+        )
+  )
 
 -- Optional:
 -- 11. Парадокс Рассела показывает, что не существует множества всех множеств.
@@ -101,4 +173,4 @@
 -- Это легко доказать при помощи исключенного третьего, но утверждение верно и без него.
 -- Докажите этот факт.
 
-\func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty => {?}
+\func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty => \let | x : A => q (\lam a => p a a) \in p x x
