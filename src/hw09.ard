@@ -1,15 +1,64 @@
 \import Data.Maybe
-\import lect06 (Decide)
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
+\import lect06 (Decide, no, yes)
 \import lect09
 
 -- 1. Определите отношение многошаговой редукции на Term.
 
-\func Red {V : \Set} (t s : Term V) : \Type => {?}
+\data Red-Chain {V : \Set} (t s : Term V)
+  | red-refl (t = s)
+  | red-trans {z : Term V} (Red-Chain t z) (Red-Chain z s)
+
+\func Red {V : \Set} (t s : Term V) : \Type => Red-Chain t s
 
 -- 2. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
 --    Определите любую стратегию редукции.
 
-\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | var v => no (\lam (s, r) => \case s \as s', r : Red1 (var v) s' \with {})
+  | app t1 t2 => \case strategy t1, strategy t2 \with {
+    | yes a, _ => yes (app a.1 t2, app-left a.2 idp)
+    | _, yes a => yes (app t1 a.1, app-right idp a.2)
+    | no n, no n1 => \case isLam t1 \with {
+      | yes (b, t1=lamb) => yes (b >>= maybe t2 var , rewrite t1=lamb (beta {_} {lam b} idp idp))
+      | no n2 => no (\lam _x => \case _x \with {
+        | (var v,r) => \case r \with {
+          | beta {f} p p1 => n2 (f, p)
+        }
+        | (app t t3,r) => \case r \with {
+          | beta {f} p p1 => n2 (f, p)
+          | app-left r1 p => n (t, r1)
+          | app-right p r1 => n1 (t3, r1)
+        }
+        | (lam t,r) => \case r \with {
+          | beta {f} p p1 => n2 (f, p)
+        }
+        | (unit,r) => \case r \with {
+          | beta {f} p p1 => n2 (f, p)
+        }
+      })
+    }
+  }
+  | lam t => \case strategy t \with {
+    | yes a => yes (lam a.1, red-lam a.2)
+    | no n => no (\lam _x => \case _x \with {
+      | (lam s, red-lam s') => n (s, s')
+      | (var v,r) => \case r \with {}
+      | (app t1 t2,r) => \case r \with {}
+      | (unit,r) => \case r \with {}
+    })
+  }
+  | unit => no (\lam (s, r) => \case s \as s', r : Red1 unit s' \with {})
+  \where {
+    \func isLam {V : \Set} (t : Term V) : Decide (\Sigma (b : Term (Maybe V)) (t = lam b)) \elim t
+      | var v => no (\lam _x => \case _x.2 \with {})
+      | app t1 t2 => no (\lam _x => \case _x.2 \with {})
+      | lam t => yes (t, idp)
+      | unit => no (\lam _x => \case _x.2 \with {})
+  }
 
 -- 3. Докажите, что подтермы достижимого терма достижимы.
 
