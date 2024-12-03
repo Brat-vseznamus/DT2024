@@ -116,14 +116,16 @@
 
 -- 5. Докажите, что нейтральные термы замкнуты относительно редукций.
 
-\func neutralRed {V : \Set} {t s : Term V} (r : Red1 t s) (n : Neutral t) : Neutral s
-  => {?}
+\func neutralRed {V : \Set} {t s : Term V} (r : Red1 t s) (n : Neutral t) : Neutral s \elim t, s, r, n
+  | app t t1, s, beta p p1, neutral-app n a => \case rewrite p in n \with {}
+  | app t t1, app s s1, app-left r p, neutral-app n a => neutral-app (neutralRed r n) (rewrite p in a)
+  | app t t1, app s s1, app-right p r, neutral-app n (acc _x) => neutral-app (rewrite p in n) (_x r)
 
 -- 6. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
 \func substLem {U V : \Set} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
                (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
-  : hasType ctx' (b >>= a) B
+  : hasType ctx' (b TermMonad.>>= a) B
   => {?}
 
 \func substLem1 => {?}
