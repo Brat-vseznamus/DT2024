@@ -1,10 +1,30 @@
 \import Data.Bool
 \import Data.Or
 \import Logic
+\import lect02 (List, nil, cons)
 
 -- 1. Определите полиморфный tail для списков.
 
+\func tail {A : \Type} (l : List A) : List A \elim l
+  | nil => nil
+  | cons _ l => l
+
 -- 2. Реализуйте любой (but choose wisely) алгоритм сортировки. Функцию сравнения можно принимать в качестве аргумента.
+
+\func sort {A : \Type} (l : List A) (cmp : A -> A -> Bool) : List A => aux l nil cmp
+  \where {
+    \func aux {A : \Type} (src : List A) (dst : List A) (cmp : A -> A -> Bool) : List A \elim src
+      | nil => dst
+      | cons a l' => aux l' (insert dst a cmp) cmp
+
+    \func insert {A : \Type} (l : List A) (a : A) (cmp : A -> A -> Bool) : List A \elim l
+      | nil => cons a nil
+      | cons h l =>
+        \case cmp a h \with {
+          | true => cons a (cons h l)
+          | false => cons h (insert l a cmp)
+        }
+  }
 
 -- 3. Докажите ассоциативность && и ||.
 
