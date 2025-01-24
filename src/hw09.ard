@@ -16,6 +16,7 @@
 
 \data Red-Chain {V : \Set} (t s : Term V)
   | red-refl (t = s)
+  | red-step (Red1 t s)
   | red-trans {z : Term V} (Red-Chain t z) (Red-Chain z s)
 
 \func Red {V : \Set} (t s : Term V) : \Type => Red-Chain t s
